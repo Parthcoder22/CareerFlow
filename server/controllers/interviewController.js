@@ -7,19 +7,26 @@
 const db = require('../config/db');
 const { getPagination, paginatedResponse } = require('../utils/helpers');
 
+const getOrCreateStudentId = async (userId) => {
+  let result = await db.query('SELECT id FROM students WHERE user_id = $1', [userId]);
+  if (result.rows.length === 0) {
+    result = await db.query(
+      'INSERT INTO students (user_id) VALUES ($1) RETURNING id',
+      [userId]
+    );
+  }
+  return result.rows[0].id;
+};
+
 // ============================================
 // GET /api/interviews
 // ============================================
 const getInterviewNotes = async (req, res) => {
   try {
-    const studentResult = await db.query('SELECT id FROM students WHERE user_id = $1', [req.user.id]);
-    if (studentResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Student profile not found.' });
-    }
+    const studentId = await getOrCreateStudentId(req.user.id);
 
     const { page, limit, offset } = getPagination(req.query);
     const { search, difficulty } = req.query;
-    const studentId = studentResult.rows[0].id;
 
     let whereConditions = ['student_id = $1'];
     let params = [studentId];
@@ -63,10 +70,7 @@ const getInterviewNotes = async (req, res) => {
 // ============================================
 const createInterviewNote = async (req, res) => {
   try {
-    const studentResult = await db.query('SELECT id FROM students WHERE user_id = $1', [req.user.id]);
-    if (studentResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Student profile not found.' });
-    }
+    const studentId = await getOrCreateStudentId(req.user.id);
 
     const {
       company_name, interview_date, round, questions,
@@ -78,7 +82,7 @@ const createInterviewNote = async (req, res) => {
        (student_id, company_name, interview_date, round, questions, difficulty, mistakes, feedback, experience, topics_to_revise)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [studentResult.rows[0].id, company_name, interview_date, round,
+      [studentId, company_name, interview_date, round,
        questions, difficulty || 'medium', mistakes, feedback, experience, topics_to_revise]
     );
 
@@ -98,10 +102,7 @@ const createInterviewNote = async (req, res) => {
 // ============================================
 const updateInterviewNote = async (req, res) => {
   try {
-    const studentResult = await db.query('SELECT id FROM students WHERE user_id = $1', [req.user.id]);
-    if (studentResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Student profile not found.' });
-    }
+    const studentId = await getOrCreateStudentId(req.user.id);
 
     const {
       company_name, interview_date, round, questions,
@@ -123,7 +124,7 @@ const updateInterviewNote = async (req, res) => {
        RETURNING *`,
       [company_name, interview_date, round, questions, difficulty,
        mistakes, feedback, experience, topics_to_revise,
-       req.params.id, studentResult.rows[0].id]
+       req.params.id, studentId]
     );
 
     if (rows.length === 0) {
@@ -146,14 +147,11 @@ const updateInterviewNote = async (req, res) => {
 // ============================================
 const deleteInterviewNote = async (req, res) => {
   try {
-    const studentResult = await db.query('SELECT id FROM students WHERE user_id = $1', [req.user.id]);
-    if (studentResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Student profile not found.' });
-    }
+    const studentId = await getOrCreateStudentId(req.user.id);
 
     const { rows } = await db.query(
       'DELETE FROM interview_notes WHERE id = $1 AND student_id = $2 RETURNING id',
-      [req.params.id, studentResult.rows[0].id]
+      [req.params.id, studentId]
     );
 
     if (rows.length === 0) {

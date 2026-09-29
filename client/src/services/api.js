@@ -13,13 +13,13 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 second timeout
+  timeout: 30000,
 });
 
-// Request interceptor: Attach JWT token to every request
+// Request interceptor: Attach JWT token to every request from this tab's sessionStorage
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('careerflow_token');
+    const token = sessionStorage.getItem('careerflow_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -28,13 +28,13 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor: Handle auth errors globally
+// Response interceptor: Handle auth errors globally for this tab only
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('careerflow_token');
-      localStorage.removeItem('careerflow_user');
+      sessionStorage.removeItem('careerflow_token');
+      sessionStorage.removeItem('careerflow_user');
       const publicPaths = ['/login', '/signup', '/forgot-password', '/'];
       if (!publicPaths.includes(window.location.pathname)) {
         window.location.href = '/login';
@@ -59,12 +59,12 @@ export const authAPI = {
   verifyEmail: (token) => api.get(`/auth/verify-email/${token}`),
 };
 
-// Dashboard
+// Student Dashboard
 export const dashboardAPI = {
   getStats: () => api.get('/dashboard'),
 };
 
-// Applications
+// Applications (Student)
 export const applicationAPI = {
   getAll: (params) => api.get('/applications', { params }),
   getOne: (id) => api.get(`/applications/${id}`),
@@ -82,16 +82,9 @@ export const resumeAPI = {
   delete: (id) => api.delete(`/resumes/${id}`),
 };
 
-// Interview Notes
-export const interviewAPI = {
-  getAll: (params) => api.get('/interviews', { params }),
-  create: (data) => api.post('/interviews', data),
-  update: (id, data) => api.put(`/interviews/${id}`, data),
-  delete: (id) => api.delete(`/interviews/${id}`),
-};
-
-// AI
+// AI & ATS Analyzer
 export const aiAPI = {
+  analyzeResume: (data) => api.post('/ai/analyze-resume', data),
   analyzeJD: (data) => api.post('/ai/analyze-jd', data),
 };
 
@@ -111,16 +104,22 @@ export const notificationAPI = {
   markAllAsRead: () => api.put('/notifications/read-all'),
 };
 
-// Admin
+// Admin / TNP Authority
 export const adminAPI = {
-  getStudents: (params) => api.get('/admin/students', { params }),
   getStatistics: () => api.get('/admin/statistics'),
+  getStudents: (params) => api.get('/admin/students', { params }),
+  getStudentDetails: (id) => api.get(`/admin/students/${id}`),
+  updateStudentPermission: (id, data) => api.put(`/admin/students/${id}/permission`, data),
   getCompanies: (params) => api.get('/admin/companies', { params }),
   addCompany: (data) => api.post('/admin/companies', data),
+  updateCompany: (id, data) => api.put(`/admin/companies/${id}`, data),
   deleteCompany: (id) => api.delete(`/admin/companies/${id}`),
+  getCompanyApplicants: (id) => api.get(`/admin/companies/${id}/applicants`),
+  getAllApplications: (params) => api.get('/admin/applications', { params }),
+  updateApplicationStatus: (id, data) => api.put(`/admin/applications/${id}/status`, data),
 };
 
-// Public/Student Companies
+// Public/Student Campus Drive Companies
 export const companyAPI = {
   getAll: () => api.get('/companies'),
 };

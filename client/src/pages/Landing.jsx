@@ -11,12 +11,12 @@ import {
 import heroDashboardImg from '../assets/hero-dashboard.png';
 
 const features = [
-  { icon: LayoutDashboard, title: 'Smart Dashboard', desc: 'Track all your applications, OAs, and interviews in one unified view.' },
-  { icon: Brain, title: 'AI JD Analyzer', desc: 'Paste any job description and get AI-powered insights for interview preparation.' },
-  { icon: FileText, title: 'Resume Manager', desc: 'Upload and manage multiple resumes. Link them to specific applications.' },
-  { icon: BookOpen, title: 'Interview Journal', desc: 'Record questions, feedback, and lessons after every interview.' },
-  { icon: Bell, title: 'Smart Reminders', desc: 'Never miss an OA or interview with automated email reminders.' },
-  { icon: BarChart3, title: 'Analytics & Reports', desc: 'Visualize your placement journey with charts and track success rates.' },
+  { icon: LayoutDashboard, title: 'TNP Drive Management', desc: 'Centralized college placement drives, automated eligibility filtering, and one-click applications.' },
+  { icon: Brain, title: 'AI ATS Resume Scanner', desc: 'Scan your resume against drive requirements, ATS match scores, missing keywords, and STAR improvements.' },
+  { icon: FileText, title: 'Targeted Resume Manager', desc: 'Maintain multiple role-targeted resumes and attach them directly to campus placement drives.' },
+  { icon: BookOpen, title: 'Campus Experience Portal', desc: 'Browse and share real interview experiences, round breakdowns, and placement advice from seniors.' },
+  { icon: Shield, title: 'Permission & Status Authority', desc: 'TNP-controlled application permissions with real-time shortlisting, selection, and rejection updates.' },
+  { icon: BarChart3, title: 'College Placement Analytics', desc: 'Track overall placement percentages, company-wise conversion rates, CTC brackets, and placement records.' },
 ];
 
 const stats = [

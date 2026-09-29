@@ -22,6 +22,8 @@ const pool = new Pool({
   max: 20,              // Maximum 20 connections in the pool
   idleTimeoutMillis: 30000,  // Close idle connections after 30 seconds
   connectionTimeoutMillis: 15000, // 15s timeout to handle serverless cold-starts (Neon)
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
 });
 
 // Log successful connection
@@ -29,10 +31,9 @@ pool.on('connect', () => {
   console.log('📦 Connected to PostgreSQL database');
 });
 
-// Log errors
+// Log errors on idle clients without crashing the server process
 pool.on('error', (err) => {
-  console.error('❌ Unexpected PostgreSQL error:', err);
-  process.exit(-1);
+  console.warn('⚠️ PostgreSQL pool idle client warning (auto-reconnecting):', err.message);
 });
 
 // Helper: Execute a parameterized query

@@ -46,15 +46,15 @@ const signupRules = [
     .matches(/[a-z]/).withMessage('Password must contain a lowercase letter')
     .matches(/[0-9]/).withMessage('Password must contain a number'),
   body('college')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
     .isLength({ max: 200 }).withMessage('College name too long'),
   body('branch')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
     .isLength({ max: 100 }).withMessage('Branch name too long'),
   body('graduation_year')
-    .optional()
+    .optional({ values: 'falsy' })
     .isInt({ min: 2020, max: 2035 }).withMessage('Invalid graduation year'),
 ];
 
@@ -77,33 +77,33 @@ const applicationRules = [
     .notEmpty().withMessage('Role is required')
     .isLength({ max: 200 }).withMessage('Role too long'),
   body('package')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim(),
   body('location')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
     .isLength({ max: 200 }).withMessage('Location too long'),
   body('status')
-    .optional()
+    .optional({ values: 'falsy' })
     .isIn(['applied', 'oa', 'technical', 'managerial', 'hr', 'offer', 'rejected', 'withdrawn'])
     .withMessage('Invalid status value'),
   body('application_link')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim(),
   body('job_description')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim(),
   body('eligibility')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim(),
   body('deadline')
-    .optional()
+    .optional({ values: 'falsy' })
     .isISO8601().withMessage('Invalid deadline date'),
   body('oa_date')
-    .optional()
+    .optional({ values: 'falsy' })
     .isISO8601().withMessage('Invalid OA date'),
   body('interview_date')
-    .optional()
+    .optional({ values: 'falsy' })
     .isISO8601().withMessage('Invalid interview date'),
 ];
 

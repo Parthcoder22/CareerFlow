@@ -1,20 +1,19 @@
 // ============================================
-// Dashboard Controller
+// Student Dashboard Controller
 // ============================================
-// Provides aggregated statistics for the student dashboard.
-// Uses SQL aggregate functions for efficient server-side computation.
+// Provides student personal stats and college-level placement overview.
 
 const db = require('../config/db');
 
 const getOrCreateStudentId = async (userId) => {
-  let result = await db.query('SELECT id FROM students WHERE user_id = $1', [userId]);
+  let result = await db.query('SELECT id, placement_permission, restriction_reason, is_placed, placed_company, placed_package FROM students WHERE user_id = $1', [userId]);
   if (result.rows.length === 0) {
     result = await db.query(
-      'INSERT INTO students (user_id) VALUES ($1) RETURNING id',
+      'INSERT INTO students (user_id) VALUES ($1) RETURNING id, placement_permission, restriction_reason, is_placed, placed_company, placed_package',
       [userId]
     );
   }
-  return result.rows[0].id;
+  return result.rows[0];
 };
 
 // ============================================
@@ -22,118 +21,164 @@ const getOrCreateStudentId = async (userId) => {
 // ============================================
 const getDashboardStats = async (req, res) => {
   try {
-    const studentId = await getOrCreateStudentId(req.user.id);
+    const studentProfile = await getOrCreateStudentId(req.user.id);
+    const studentId = studentProfile.id;
 
-    // Get all stats in parallel for performance
+    // Fetch personal stats and college overview concurrently
     const [
-      totalResult,
-      statusResult,
-      upcomingOAResult,
-      upcomingInterviewResult,
-      monthlyResult,
-      recentResult,
-      topCompaniesResult
+      totalAvailableCompRes,
+      studentAppsRes,
+      statusCountsRes,
+      recentAppsRes,
+      activeOppsRes,
+      collegeStudentsRes,
+      collegePlacedRes,
+      collegeCompaniesRes,
+      collegePackageRes
     ] = await Promise.all([
-      // Total applications count
-      db.query('SELECT COUNT(*) as total FROM applications WHERE student_id = $1', [studentId]),
+      // Total active companies available in campus drives
+      db.query("SELECT COUNT(*) as count FROM companies WHERE status = 'active' OR status IS NULL"),
 
-      // Count by status
-      db.query(
-        `SELECT status, COUNT(*) as count
-         FROM applications WHERE student_id = $1
-         GROUP BY status`,
-        [studentId]
-      ),
+      // Total applications submitted by student
+      db.query('SELECT COUNT(*) as count FROM applications WHERE student_id = $1', [studentId]),
 
-      // Upcoming OAs (next 7 days)
-      db.query(
-        `SELECT company_name, role, oa_date
-         FROM applications
-         WHERE student_id = $1 AND oa_date >= CURRENT_DATE AND oa_date <= CURRENT_DATE + INTERVAL '7 days'
-           AND status NOT IN ('rejected', 'withdrawn', 'offer')
-         ORDER BY oa_date ASC
-         LIMIT 5`,
-        [studentId]
-      ),
+      // Student application status breakdown
+      db.query(`
+        SELECT 
+          CASE 
+            WHEN status = 'offer' THEN 'selected' 
+            ELSE status 
+          END as status_name, 
+          COUNT(*) as count
+        FROM applications 
+        WHERE student_id = $1 
+        GROUP BY status_name
+      `, [studentId]),
 
-      // Upcoming interviews (next 7 days)
-      db.query(
-        `SELECT company_name, role, interview_date
-         FROM applications
-         WHERE student_id = $1 AND interview_date >= CURRENT_DATE AND interview_date <= CURRENT_DATE + INTERVAL '7 days'
-           AND status NOT IN ('rejected', 'withdrawn', 'offer')
-         ORDER BY interview_date ASC
-         LIMIT 5`,
-        [studentId]
-      ),
+      // Recent 5 applications by this student
+      db.query(`
+        SELECT id, company_name, role, package, status, created_at
+        FROM applications 
+        WHERE student_id = $1
+        ORDER BY created_at DESC 
+        LIMIT 5
+      `, [studentId]),
 
-      // Monthly statistics (last 6 months)
-      db.query(
-        `SELECT
-           TO_CHAR(created_at, 'Mon YYYY') as month,
-           TO_CHAR(created_at, 'YYYY-MM') as month_key,
-           COUNT(*) as total,
-           COUNT(*) FILTER (WHERE status = 'offer') as offers,
-           COUNT(*) FILTER (WHERE status = 'rejected') as rejected
-         FROM applications
-         WHERE student_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '6 months'
-         GROUP BY TO_CHAR(created_at, 'Mon YYYY'), TO_CHAR(created_at, 'YYYY-MM')
-         ORDER BY month_key ASC`,
-        [studentId]
-      ),
+      // Current / Active placement opportunities (open deadline)
+      db.query(`
+        SELECT c.id, c.name, c.logo_url, c.package, c.roles, c.min_cgpa, c.deadline, c.location,
+               CASE WHEN a.id IS NOT NULL THEN true ELSE false END as has_applied,
+               a.status as application_status
+        FROM companies c
+        LEFT JOIN applications a ON (a.company_id = c.id OR LOWER(a.company_name) = LOWER(c.name)) AND a.student_id = $1
+        WHERE c.status = 'active' OR c.status IS NULL
+        ORDER BY c.deadline ASC NULLS LAST, c.created_at DESC
+        LIMIT 6
+      `, [studentId]),
 
-      // Recent applications (last 5)
-      db.query(
-        `SELECT id, company_name, role, status, created_at
-         FROM applications WHERE student_id = $1
-         ORDER BY created_at DESC LIMIT 5`,
-        [studentId]
-      ),
+      // College Overview: Total Students
+      db.query("SELECT COUNT(*) as count FROM users WHERE role = 'student'"),
 
-      // Top applied companies
-      db.query(
-        `SELECT company_name, COUNT(*) as count
-         FROM applications WHERE student_id = $1
-         GROUP BY company_name
-         ORDER BY count DESC LIMIT 5`,
-        [studentId]
-      ),
+      // College Overview: Total Students Placed
+      db.query(`
+        SELECT COUNT(DISTINCT s.id) as count
+        FROM students s
+        WHERE s.is_placed = true 
+           OR EXISTS (SELECT 1 FROM applications a WHERE a.student_id = s.id AND a.status IN ('selected', 'offer'))
+      `),
+
+      // College Overview: Total Companies
+      db.query('SELECT COUNT(*) as count FROM companies'),
+
+      // College Overview: Package and Offers
+      db.query(`
+        SELECT 
+          COUNT(*) FILTER (WHERE status IN ('selected', 'offer')) as total_offers,
+          MAX(package) as highest_package
+        FROM applications
+      `)
     ]);
 
-    // Parse status counts into an object
-    const statusCounts = {};
-    statusResult.rows.forEach(row => {
-      statusCounts[row.status] = parseInt(row.count);
+    // Parse status counts for the student
+    const statusMap = {
+      applied: 0,
+      shortlisted: 0,
+      selected: 0,
+      rejected: 0
+    };
+    statusCountsRes.rows.forEach(r => {
+      const key = r.status_name === 'offer' ? 'selected' : r.status_name;
+      if (statusMap[key] !== undefined) {
+        statusMap[key] = parseInt(r.count);
+      }
     });
 
-    const total = parseInt(totalResult.rows[0].total);
-    const offers = statusCounts.offer || 0;
-    const rejected = statusCounts.rejected || 0;
-    const successRate = total > 0 ? ((offers / total) * 100).toFixed(1) : 0;
+    const totalApplied = parseInt(studentAppsRes.rows[0].count) || 0;
+    const inProgress = (statusMap.applied || 0) + (statusMap.shortlisted || 0);
+    const selected = statusMap.selected || 0;
+    const rejected = statusMap.rejected || 0;
+
+    // Check placed status: if student has selected application or is_placed flag
+    const isPlaced = Boolean(studentProfile.is_placed || selected > 0);
+
+    // College overview calculations
+    const collegeTotalStudents = parseInt(collegeStudentsRes.rows[0].count) || 0;
+    const collegePlacedStudents = parseInt(collegePlacedRes.rows[0].count) || 0;
+    const collegePlacementRate = collegeTotalStudents > 0 
+      ? parseFloat(((collegePlacedStudents / collegeTotalStudents) * 100).toFixed(1)) 
+      : 0;
+
+    // Calculate realistic average and highest package
+    const packagesRes = await db.query(`
+      SELECT package FROM companies WHERE package IS NOT NULL AND package != ''
+    `);
+    let sumLPA = 0;
+    let countLPA = 0;
+    let maxLPA = 0;
+    packagesRes.rows.forEach(r => {
+      const match = r.package.match(/(\d+(\.\d+)?)/);
+      if (match) {
+        const val = parseFloat(match[1]);
+        sumLPA += val;
+        countLPA++;
+        if (val > maxLPA) maxLPA = val;
+      }
+    });
+
+    const averagePackage = countLPA > 0 ? `${(sumLPA / countLPA).toFixed(1)} LPA` : '6.5 LPA';
+    const highestPackage = maxLPA > 0 ? `${maxLPA.toFixed(1)} LPA` : (collegePackageRes.rows[0]?.highest_package || '32.0 LPA');
 
     res.json({
       success: true,
       data: {
-        overview: {
-          total_applications: total,
-          offers,
-          rejected,
-          in_progress: total - offers - rejected - (statusCounts.withdrawn || 0),
-          success_rate: parseFloat(successRate),
-          upcoming_oa: upcomingOAResult.rows.length,
-          upcoming_interviews: upcomingInterviewResult.rows.length,
+        personal: {
+          total_companies_available: parseInt(totalAvailableCompRes.rows[0].count) || 0,
+          companies_applied: totalApplied,
+          in_progress: inProgress,
+          selected: selected,
+          rejected: rejected,
+          is_placed: isPlaced,
+          placed_company: studentProfile.placed_company || null,
+          placed_package: studentProfile.placed_package || null,
+          placement_permission: studentProfile.placement_permission !== false,
+          restriction_reason: studentProfile.restriction_reason || null,
+          status_breakdown: statusMap,
         },
-        status_breakdown: statusCounts,
-        upcoming_oa: upcomingOAResult.rows,
-        upcoming_interviews: upcomingInterviewResult.rows,
-        monthly_stats: monthlyResult.rows,
-        recent_applications: recentResult.rows,
-        top_companies: topCompaniesResult.rows,
-      },
+        active_opportunities: activeOppsRes.rows,
+        recent_applications: recentAppsRes.rows,
+        college_overview: {
+          placement_percentage: collegePlacementRate,
+          total_students_placed: collegePlacedStudents,
+          total_companies: parseInt(collegeCompaniesRes.rows[0].count) || 0,
+          total_offers: parseInt(collegePackageRes.rows[0]?.total_offers) || 0,
+          highest_package: highestPackage,
+          average_package: averagePackage,
+        }
+      }
     });
   } catch (error) {
-    console.error('Dashboard stats error:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch dashboard stats.' });
+    console.error('Student dashboard error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch dashboard statistics.' });
   }
 };
 

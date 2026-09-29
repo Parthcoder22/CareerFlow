@@ -17,8 +17,19 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
 
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm();
   const from = location.state?.from?.pathname || '/dashboard';
+
+  const fillDemo = (role) => {
+    if (role === 'admin') {
+      setValue('email', 'admin@careerflow.com');
+      setValue('password', 'Admin@123');
+    } else {
+      setValue('email', 'student@careerflow.com');
+      setValue('password', 'Student@123');
+    }
+    toast.success(`Loaded ${role === 'admin' ? 'Admin / TNP' : 'Student'} demo credentials!`, { duration: 2000 });
+  };
 
   const onSubmit = async (data) => {
     setLoading(true);
@@ -63,16 +74,42 @@ export default function Login() {
             <span className="text-xl font-semibold tracking-tight">CareerFlow</span>
           </Link>
           <h2 className="text-3xl font-semibold tracking-tight text-white mb-2">Welcome back</h2>
-          <p className="text-sm" style={{ color: '#888' }}>Enter your details to access your account</p>
+          <p className="text-sm" style={{ color: '#888' }}>Enter your details or choose a demo role below</p>
         </div>
 
         <div className="p-8 rounded-2xl border" style={{ background: 'rgba(10, 10, 10, 0.6)', borderColor: '#222', backdropFilter: 'blur(20px)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             
-            <div className="p-3 rounded-lg border text-xs text-surface-200/70" style={{ background: '#111', borderColor: '#222' }}>
-              <p className="font-semibold text-white mb-1">🔑 Demo Admin Login:</p>
-              <p><span style={{ color: '#888' }}>Email:</span> <code className="text-primary-400">admin@careerflow.com</code></p>
-              <p><span style={{ color: '#888' }}>Password:</span> <code className="text-primary-400">Admin@123</code></p>
+            {/* Quick Demo Credentials Switcher */}
+            <div className="space-y-2 mb-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-surface-200/50">Quick Demo Accounts (Click to Fill):</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => fillDemo('admin')}
+                  className="p-2.5 rounded-lg border text-left transition-all hover:border-primary-500/50 active:scale-95 cursor-pointer"
+                  style={{ background: '#111', borderColor: '#262626' }}
+                >
+                  <p className="font-semibold text-xs text-white flex items-center gap-1.5">
+                    <span>👑 Admin / TNP</span>
+                  </p>
+                  <p className="text-[11px] text-primary-400 font-mono mt-0.5 truncate">admin@careerflow.com</p>
+                  <p className="text-[10px] text-surface-200/40">Pass: Admin@123</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => fillDemo('student')}
+                  className="p-2.5 rounded-lg border text-left transition-all hover:border-success/50 active:scale-95 cursor-pointer"
+                  style={{ background: '#111', borderColor: '#262626' }}
+                >
+                  <p className="font-semibold text-xs text-white flex items-center gap-1.5">
+                    <span>🎓 Student</span>
+                  </p>
+                  <p className="text-[11px] text-emerald-400 font-mono mt-0.5 truncate">student@careerflow.com</p>
+                  <p className="text-[10px] text-surface-200/40">Pass: Student@123</p>
+                </button>
+              </div>
             </div>
 
             <AnimatePresence>

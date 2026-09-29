@@ -1,5 +1,5 @@
 // ============================================
-// Student Dashboard Page - SaaS Design
+// Student Dashboard - College Placement Portal
 // ============================================
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -8,19 +8,16 @@ import { dashboardAPI } from '../services/api';
 import StatsCard from '../components/ui/StatsCard';
 import { DashboardSkeleton } from '../components/skeletons/Skeletons';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Area, AreaChart
-} from 'recharts';
-import {
-  FileText, Award, XCircle, TrendingUp,
-  Calendar, Clock, Target, Briefcase
+  FileText, Award, XCircle, TrendingUp, Clock,
+  Briefcase, Building2, CheckCircle2, ShieldAlert,
+  ChevronRight, ArrowUpRight, DollarSign, Calendar
 } from 'lucide-react';
-import { getStatusLabel, getStatusColor, formatDate } from '../utils/constants';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [stats, setStats] = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,8 +26,8 @@ export default function Dashboard() {
 
   const fetchDashboard = async () => {
     try {
-      const { data } = await dashboardAPI.getStats();
-      setStats(data.data);
+      const res = await dashboardAPI.getStats();
+      setData(res.data.data);
     } catch (error) {
       toast.error('Failed to load dashboard data');
     } finally {
@@ -40,160 +37,281 @@ export default function Dashboard() {
 
   if (loading) return <DashboardSkeleton />;
 
-  const overview = stats?.overview || {};
-  const statusData = stats?.status_breakdown
-    ? Object.entries(stats.status_breakdown).map(([key, value]) => ({
-        name: getStatusLabel(key),
-        value,
-        color: getStatusColor(key),
-      }))
-    : [];
-  const monthlyData = stats?.monthly_stats || [];
+  const personal = data?.personal || {};
+  const college = data?.college_overview || {};
+  const activeOpps = data?.active_opportunities || [];
+  const recentApps = data?.recent_applications || [];
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto" style={{ color: '#ededed' }}>
+    <div className="space-y-8 animate-fade-in pb-12">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Welcome back, {user?.full_name?.split(' ')[0]} 👋
-        </h1>
-        <p className="mt-1" style={{ color: '#888' }}>Here's your placement overview.</p>
-      </motion.div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#222] pb-6">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              Candidate Portal
+            </span>
+            <span className="text-xs text-surface-200/40">• Class of 2026</span>
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-white">
+            Welcome back, {user?.full_name?.split(' ')[0]} 👋
+          </h1>
+          <p className="text-surface-200/50 text-sm mt-1">
+            Track your campus placement journey, drive eligibility, and hiring updates.
+          </p>
+        </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatsCard title="Total Applications" value={overview.total_applications || 0} icon={FileText} color="#ededed" delay={0} />
-        <StatsCard title="Offers Received" value={overview.offers || 0} icon={Award} color="#10b981" delay={0.1} />
-        <StatsCard title="In Progress" value={overview.in_progress || 0} icon={Clock} color="#f59e0b" delay={0.2} />
-        <StatsCard title="Success Rate" value={`${overview.success_rate || 0}%`} icon={TrendingUp} color="#a855f7" delay={0.3} />
+        <div className="flex items-center gap-3">
+          <Link to="/companies" className="btn-primary text-sm flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 border-none text-white">
+            <Building2 size={16} /> Browse Campus Drives
+          </Link>
+        </div>
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Monthly Trend Chart */}
-        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="p-6 rounded-xl border" style={{ background: '#0a0a0a', borderColor: '#222' }}>
-          <h3 className="text-lg font-medium mb-6">Application Trends</h3>
-          {monthlyData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ededed" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#ededed" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
-                <XAxis dataKey="month" stroke="#666" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#666" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ background: '#111', border: '1px solid #333', borderRadius: '8px', color: '#fff' }} itemStyle={{ color: '#ededed' }} />
-                <Area type="monotone" dataKey="total" stroke="#ededed" fillOpacity={1} fill="url(#colorTotal)" strokeWidth={2} />
-                <Line type="monotone" dataKey="offers" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981', r: 4, strokeWidth: 0 }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-64 flex items-center justify-center text-sm" style={{ color: '#666' }}>No data yet. Start adding applications!</div>
-          )}
+      {/* RESTRICTION WARNING BANNER (If Permission is False) */}
+      {!personal.placement_permission && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 rounded-xl border border-red-500/30 bg-red-500/10 flex items-start gap-3.5"
+        >
+          <ShieldAlert size={22} className="text-red-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h4 className="text-sm font-bold text-red-200">
+              Placement Application Permission Restricted
+            </h4>
+            <p className="text-xs text-red-300/80 mt-1 leading-relaxed">
+              Your placement application privileges have been restricted by the Training & Placement Cell.
+              {personal.restriction_reason && (
+                <span className="block mt-1 font-semibold text-red-200">
+                  Reason: "{personal.restriction_reason}"
+                </span>
+              )}
+              You can still browse active campus drives and track your past submissions, but you cannot submit new applications. Please contact the T&P Cell if you believe this is an error.
+            </p>
+          </div>
         </motion.div>
+      )}
 
-        {/* Status Distribution Pie */}
-        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="p-6 rounded-xl border flex flex-col" style={{ background: '#0a0a0a', borderColor: '#222' }}>
-          <h3 className="text-lg font-medium mb-6">Status Distribution</h3>
-          {statusData.length > 0 ? (
-            <div className="flex items-center gap-6 flex-1">
-              <ResponsiveContainer width="50%" height={200}>
-                <PieChart>
-                  <Pie data={statusData} innerRadius={60} outerRadius={80} paddingAngle={4} dataKey="value" stroke="none">
-                    {statusData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: '#111', border: '1px solid #333', borderRadius: '8px', color: '#fff' }} itemStyle={{ color: '#ededed' }} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex-1 space-y-3">
-                {statusData.map((item, i) => (
-                  <div key={i} className="flex items-center gap-3 text-sm">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: item.color }} />
-                    <span style={{ color: '#888' }} className="truncate">{item.name}</span>
-                    <span className="font-medium ml-auto">{item.value}</span>
-                  </div>
-                ))}
-              </div>
+      {/* Row 1: Student Personal Placement Status Grid */}
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-surface-200/50 mb-3 flex items-center gap-2">
+          <Briefcase size={14} className="text-emerald-400" /> My Placement Journey
+        </h3>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="p-4 rounded-xl bg-black/40 border border-[#222]">
+            <span className="text-xs text-surface-200/50 font-medium">Placement Status</span>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                personal.is_placed
+                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                  : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+              }`}>
+                {personal.is_placed ? 'Placed 🎉' : 'Unplaced'}
+              </span>
             </div>
-          ) : (
-            <div className="h-64 flex items-center justify-center text-sm" style={{ color: '#666' }}>No data yet.</div>
-          )}
-        </motion.div>
+            {personal.placed_company && (
+              <span className="text-[10px] text-white font-semibold mt-1 block truncate">
+                {personal.placed_company} ({personal.placed_package})
+              </span>
+            )}
+          </div>
+
+          <StatsCard
+            title="Drives Available"
+            value={personal.total_companies_available || 0}
+            icon={Building2}
+            color="#3b82f6"
+            delay={0.05}
+          />
+          <StatsCard
+            title="Drives Applied"
+            value={personal.companies_applied || 0}
+            icon={FileText}
+            color="#6366f1"
+            delay={0.1}
+          />
+          <StatsCard
+            title="In Progress"
+            value={personal.in_progress || 0}
+            icon={Clock}
+            color="#f59e0b"
+            delay={0.15}
+          />
+          <StatsCard
+            title="Offers Received"
+            value={personal.selected || 0}
+            icon={Award}
+            color="#10b981"
+            delay={0.2}
+          />
+          <StatsCard
+            title="Rejected"
+            value={personal.rejected || 0}
+            icon={XCircle}
+            color="#ef4444"
+            delay={0.25}
+          />
+        </div>
       </div>
 
-      {/* Bottom Row */}
+      {/* Row 2: College Placement Overview (Required Specification) */}
+      <div className="glass-card p-6 border border-[#222]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 border-b border-[#222] pb-4">
+          <div>
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <TrendingUp size={18} className="text-emerald-400" /> College Placement Overview
+            </h3>
+            <p className="text-xs text-surface-200/50 mt-0.5">
+              Aggregate batch statistics and placement performance published by T&P Cell.
+            </p>
+          </div>
+          <span className="text-xs px-2.5 py-1 rounded bg-white/5 border border-white/10 text-surface-200/70">
+            Batch Aggregate • Private Data Masked
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 text-center">
+          <div className="p-3.5 rounded-lg border border-[#262626] bg-[#0c0c0c]">
+            <span className="text-xs text-surface-200/50 font-medium">Overall Placement %</span>
+            <p className="text-2xl font-bold text-emerald-400 mt-1">{college.placement_percentage || 0}%</p>
+            <span className="text-[10px] text-surface-200/40">Of eligible batch</span>
+          </div>
+
+          <div className="p-3.5 rounded-lg border border-[#262626] bg-[#0c0c0c]">
+            <span className="text-xs text-surface-200/50 font-medium">Students Placed</span>
+            <p className="text-2xl font-bold text-white mt-1">{college.total_students_placed || 0}</p>
+            <span className="text-[10px] text-emerald-400 font-semibold">{college.total_offers || 0} Offers Made</span>
+          </div>
+
+          <div className="p-3.5 rounded-lg border border-[#262626] bg-[#0c0c0c]">
+            <span className="text-xs text-surface-200/50 font-medium">Partner Companies</span>
+            <p className="text-2xl font-bold text-white mt-1">{college.total_companies || 0}</p>
+            <span className="text-[10px] text-surface-200/40">Visiting Campus</span>
+          </div>
+
+          <div className="p-3.5 rounded-lg border border-[#262626] bg-[#0c0c0c]">
+            <span className="text-xs text-surface-200/50 font-medium">Highest Package</span>
+            <p className="text-2xl font-bold text-pink-400 mt-1">{college.highest_package || 'N/A'}</p>
+            <span className="text-[10px] text-surface-200/40">Peak CTC achieved</span>
+          </div>
+
+          <div className="p-3.5 rounded-lg border border-[#262626] bg-[#0c0c0c]">
+            <span className="text-xs text-surface-200/50 font-medium">Average Package</span>
+            <p className="text-2xl font-bold text-blue-400 mt-1">{college.average_package || 'N/A'}</p>
+            <span className="text-[10px] text-surface-200/40">Batch average CTC</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 3: Active Placement Opportunities (Recruitment Drives) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="p-6 rounded-xl border" style={{ background: '#0a0a0a', borderColor: '#222' }}>
-          <h3 className="text-base font-medium mb-4 flex items-center gap-2">
-            <Calendar size={18} style={{ color: '#f59e0b' }} /> Upcoming OAs
-          </h3>
-          {stats?.upcoming_oa?.length > 0 ? (
-            <div className="space-y-3">
-              {stats.upcoming_oa.map((item, i) => (
-                <div key={i} className="flex items-center justify-between p-3 rounded-lg border" style={{ background: '#111', borderColor: '#222' }}>
-                  <div>
-                    <p className="text-sm font-medium">{item.company_name}</p>
-                    <p className="text-xs" style={{ color: '#888' }}>{item.role}</p>
-                  </div>
-                  <span className="text-xs font-medium px-2 py-1 rounded" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
-                    {formatDate(item.oa_date)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm" style={{ color: '#666' }}>No upcoming OAs</p>
-          )}
-        </motion.div>
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <Building2 size={18} className="text-emerald-400" /> Active Campus Recruitment Drives
+            </h3>
+            <Link to="/companies" className="text-xs text-emerald-400 hover:underline flex items-center gap-1">
+              View all drives <ChevronRight size={14} />
+            </Link>
+          </div>
 
-        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="p-6 rounded-xl border" style={{ background: '#0a0a0a', borderColor: '#222' }}>
-          <h3 className="text-base font-medium mb-4 flex items-center gap-2">
-            <Briefcase size={18} style={{ color: '#3b82f6' }} /> Upcoming Interviews
-          </h3>
-          {stats?.upcoming_interviews?.length > 0 ? (
-            <div className="space-y-3">
-              {stats.upcoming_interviews.map((item, i) => (
-                <div key={i} className="flex items-center justify-between p-3 rounded-lg border" style={{ background: '#111', borderColor: '#222' }}>
+          {activeOpps.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {activeOpps.map((opp) => (
+                <div
+                  key={opp.id}
+                  className="p-4 rounded-xl border border-[#242424] bg-black/40 hover:border-emerald-500/30 transition-all flex flex-col justify-between"
+                >
                   <div>
-                    <p className="text-sm font-medium">{item.company_name}</p>
-                    <p className="text-xs" style={{ color: '#888' }}>{item.role}</p>
-                  </div>
-                  <span className="text-xs font-medium px-2 py-1 rounded" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
-                    {formatDate(item.interview_date)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm" style={{ color: '#666' }}>No upcoming interviews</p>
-          )}
-        </motion.div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center font-bold text-xs text-white">
+                          {opp.name?.charAt(0)}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-white text-sm">{opp.name}</h4>
+                          <span className="text-[11px] text-surface-200/50">{opp.roles || 'Software Engineer'}</span>
+                        </div>
+                      </div>
 
-        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }} className="p-6 rounded-xl border" style={{ background: '#0a0a0a', borderColor: '#222' }}>
-          <h3 className="text-base font-medium mb-4 flex items-center gap-2">
-            <Target size={18} style={{ color: '#a855f7' }} /> Recent Applications
-          </h3>
-          {stats?.recent_applications?.length > 0 ? (
-            <div className="space-y-3">
-              {stats.recent_applications.map((item, i) => (
-                <div key={i} className="flex items-center justify-between p-3 rounded-lg border" style={{ background: '#111', borderColor: '#222' }}>
-                  <div>
-                    <p className="text-sm font-medium">{item.company_name}</p>
-                    <p className="text-xs" style={{ color: '#888' }}>{item.role}</p>
+                      <span className="font-bold text-xs text-emerald-400">
+                        {opp.package || 'Competitive'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-[11px] text-surface-200/60 my-2">
+                      <span>Min CGPA: <strong className="text-white">{opp.min_cgpa || 'Open'}</strong></span>
+                      {opp.deadline && (
+                        <span>Deadline: <strong className="text-amber-400">{new Date(opp.deadline).toLocaleDateString()}</strong></span>
+                      )}
+                    </div>
                   </div>
-                  <span className="text-xs font-medium px-2 py-1 rounded" style={{ border: '1px solid #333', color: getStatusColor(item.status) }}>
-                    {getStatusLabel(item.status)}
+
+                  <div className="pt-2 border-t border-[#1f1f1f] flex items-center justify-between mt-2">
+                    {opp.has_applied ? (
+                      <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                        <CheckCircle2 size={13} /> {opp.application_status || 'Applied'}
+                      </span>
+                    ) : (
+                      <Link
+                        to={`/companies`}
+                        className="text-xs font-semibold text-emerald-400 hover:underline flex items-center gap-1"
+                      >
+                        Check & Apply <ArrowUpRight size={13} />
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-8 text-center text-surface-200/40 text-sm glass-card">
+              No active drives posted at the moment.
+            </div>
+          )}
+        </div>
+
+        {/* Recent Applications Sidebar */}
+        <div className="glass-card p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-[#222] pb-3">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <FileText size={16} className="text-emerald-400" /> My Recent Applications
+            </h3>
+            <Link to="/applications" className="text-xs text-surface-200/50 hover:text-white">
+              View all
+            </Link>
+          </div>
+
+          {recentApps.length > 0 ? (
+            <div className="space-y-2.5">
+              {recentApps.map((app) => (
+                <div key={app.id} className="p-3 rounded-lg bg-black/40 border border-[#222] flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-white text-xs">{app.company_name}</p>
+                    <p className="text-[11px] text-surface-200/50">{app.role}</p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                    app.status === 'selected'
+                      ? 'bg-emerald-500/15 text-emerald-400'
+                      : app.status === 'shortlisted'
+                      ? 'bg-blue-500/15 text-blue-400'
+                      : app.status === 'rejected'
+                      ? 'bg-red-500/15 text-red-400'
+                      : 'bg-amber-500/15 text-amber-400'
+                  }`}>
+                    {app.status}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm" style={{ color: '#666' }}>No recent applications</p>
+            <div className="text-center py-10 text-xs text-surface-200/40">
+              No applications submitted yet. Browse active drives!
+            </div>
           )}
-        </motion.div>
+        </div>
       </div>
     </div>
   );

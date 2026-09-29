@@ -7,6 +7,17 @@
 const db = require('../config/db');
 const { getPagination, paginatedResponse } = require('../utils/helpers');
 
+const getOrCreateStudentId = async (userId) => {
+  let result = await db.query('SELECT id FROM students WHERE user_id = $1', [userId]);
+  if (result.rows.length === 0) {
+    result = await db.query(
+      'INSERT INTO students (user_id) VALUES ($1) RETURNING id',
+      [userId]
+    );
+  }
+  return result.rows[0].id;
+};
+
 // ============================================
 // GET /api/experiences
 // ============================================
@@ -37,8 +48,7 @@ const getExperiences = async (req, res) => {
     // Get student_id for checking if user has liked/bookmarked
     let studentId = null;
     if (req.user) {
-      const studentResult = await db.query('SELECT id FROM students WHERE user_id = $1', [req.user.id]);
-      if (studentResult.rows.length > 0) studentId = studentResult.rows[0].id;
+      studentId = await getOrCreateStudentId(req.user.id);
     }
 
     const countResult = await db.query(
@@ -137,10 +147,7 @@ const getExperiences = async (req, res) => {
 // ============================================
 const createExperience = async (req, res) => {
   try {
-    const studentResult = await db.query('SELECT id FROM students WHERE user_id = $1', [req.user.id]);
-    if (studentResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Student profile not found.' });
-    }
+    const studentId = await getOrCreateStudentId(req.user.id);
 
     const { company_name, role, rounds, questions, difficulty, tips, experience, is_anonymous } = req.body;
 
@@ -148,7 +155,7 @@ const createExperience = async (req, res) => {
       `INSERT INTO experiences (student_id, company_name, role, rounds, questions, difficulty, tips, experience, is_anonymous)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [is_anonymous ? null : studentResult.rows[0].id, company_name, role, rounds, questions,
+      [is_anonymous ? null : studentId, company_name, role, rounds, questions,
        difficulty || 'medium', tips, experience, is_anonymous !== false]
     );
 
@@ -168,12 +175,7 @@ const createExperience = async (req, res) => {
 // ============================================
 const toggleLike = async (req, res) => {
   try {
-    const studentResult = await db.query('SELECT id FROM students WHERE user_id = $1', [req.user.id]);
-    if (studentResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Student profile not found.' });
-    }
-
-    const studentId = studentResult.rows[0].id;
+    const studentId = await getOrCreateStudentId(req.user.id);
     const experienceId = req.params.id;
 
     // Check if already liked
@@ -205,12 +207,7 @@ const toggleLike = async (req, res) => {
 // ============================================
 const toggleBookmark = async (req, res) => {
   try {
-    const studentResult = await db.query('SELECT id FROM students WHERE user_id = $1', [req.user.id]);
-    if (studentResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Student profile not found.' });
-    }
-
-    const studentId = studentResult.rows[0].id;
+    const studentId = await getOrCreateStudentId(req.user.id);
     const experienceId = req.params.id;
 
     const existing = await db.query(
@@ -239,10 +236,7 @@ const toggleBookmark = async (req, res) => {
 // ============================================
 const getBookmarkedExperiences = async (req, res) => {
   try {
-    const studentResult = await db.query('SELECT id FROM students WHERE user_id = $1', [req.user.id]);
-    if (studentResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Student profile not found.' });
-    }
+    const studentId = await getOrCreateStudentId(req.user.id);
 
     const { rows } = await db.query(
       `SELECT e.*,
@@ -256,7 +250,7 @@ const getBookmarkedExperiences = async (req, res) => {
       LEFT JOIN likes l ON l.experience_id = e.id AND l.student_id = $1
       WHERE b.student_id = $1
       ORDER BY b.created_at DESC`,
-      [studentResult.rows[0].id]
+      [studentId]
     );
 
     res.json({ success: true, data: rows });

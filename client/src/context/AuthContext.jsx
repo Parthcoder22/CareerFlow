@@ -43,9 +43,17 @@ const authReducer = (state, action) => {
   }
 };
 
+// Clean up any legacy shared localStorage auth tokens once to ensure tab isolation
+try {
+  localStorage.removeItem('careerflow_token');
+  localStorage.removeItem('careerflow_user');
+} catch (e) {
+  // safe
+}
+
 const initialState = {
   user: null,
-  token: localStorage.getItem('careerflow_token'),
+  token: sessionStorage.getItem('careerflow_token'),
   isAuthenticated: false,
   loading: true,
 };
@@ -53,10 +61,10 @@ const initialState = {
 export function AuthProvider({ children }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  // Load user on mount if token exists
+  // Load user on mount if token exists in this tab's sessionStorage
   useEffect(() => {
     const loadUser = async () => {
-      const token = localStorage.getItem('careerflow_token');
+      const token = sessionStorage.getItem('careerflow_token');
       if (!token) {
         dispatch({ type: 'LOGOUT' });
         return;
@@ -66,8 +74,8 @@ export function AuthProvider({ children }) {
         const { data } = await authAPI.getMe();
         dispatch({ type: 'LOAD_USER', payload: data.user });
       } catch (error) {
-        localStorage.removeItem('careerflow_token');
-        localStorage.removeItem('careerflow_user');
+        sessionStorage.removeItem('careerflow_token');
+        sessionStorage.removeItem('careerflow_user');
         dispatch({ type: 'LOGOUT' });
       }
     };
@@ -79,8 +87,9 @@ export function AuthProvider({ children }) {
     dispatch({ type: 'SET_LOADING' });
     try {
       const { data } = await authAPI.login(credentials);
-      localStorage.setItem('careerflow_token', data.token);
-      localStorage.setItem('careerflow_user', JSON.stringify(data.user));
+      // Store token strictly in current tab's sessionStorage
+      sessionStorage.setItem('careerflow_token', data.token);
+      sessionStorage.setItem('careerflow_user', JSON.stringify(data.user));
       dispatch({ type: 'LOGIN_SUCCESS', payload: data });
       return data;
     } catch (error) {
@@ -93,8 +102,9 @@ export function AuthProvider({ children }) {
     dispatch({ type: 'SET_LOADING' });
     try {
       const { data } = await authAPI.signup(userData);
-      localStorage.setItem('careerflow_token', data.token);
-      localStorage.setItem('careerflow_user', JSON.stringify(data.user));
+      // Store token strictly in current tab's sessionStorage
+      sessionStorage.setItem('careerflow_token', data.token);
+      sessionStorage.setItem('careerflow_user', JSON.stringify(data.user));
       dispatch({ type: 'LOGIN_SUCCESS', payload: data });
       return data;
     } catch (error) {
@@ -104,8 +114,9 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('careerflow_token');
-    localStorage.removeItem('careerflow_user');
+    // Only clears current tab's session - other tabs remain untouched!
+    sessionStorage.removeItem('careerflow_token');
+    sessionStorage.removeItem('careerflow_user');
     dispatch({ type: 'LOGOUT' });
   };
 

@@ -1,50 +1,45 @@
 // ============================================
-// Applications Page
+// Student Applications Tracker (Read-Only Status)
 // ============================================
+// Students can track the exact status of their campus drive applications.
+// Selection & shortlisting status is strictly controlled by T&P Cell.
+
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { applicationAPI, resumeAPI, companyAPI } from '../services/api';
-import Modal from '../components/ui/Modal';
+import { applicationAPI } from '../services/api';
 import EmptyState from '../components/ui/EmptyState';
 import { PageSkeleton } from '../components/skeletons/Skeletons';
-import { useForm } from 'react-hook-form';
 import {
-  Plus, Search, Filter, Building2, MapPin, Calendar,
-  ExternalLink, Trash2, Edit, ChevronLeft, ChevronRight, X
+  Search, Building2, MapPin, Calendar, ExternalLink,
+  FileText, CheckCircle2, Clock, XCircle, Award, X, AlertCircle
 } from 'lucide-react';
-import { STATUS_OPTIONS, getStatusLabel, getStatusBg, formatDate } from '../utils/constants';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 export default function Applications() {
   const [applications, setApplications] = useState([]);
-  const [resumes, setResumes] = useState([]);
-  const [availableCompanies, setAvailableCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingApp, setEditingApp] = useState(null);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
-  const [filters, setFilters] = useState({ search: '', status: '', sort_by: 'created_at', sort_order: 'desc' });
-
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
+  const [filters, setFilters] = useState({ search: '', status: 'all', sort_by: 'created_at', sort_order: 'desc' });
+  const [previewResumeUrl, setPreviewResumeUrl] = useState(null);
 
   useEffect(() => {
     fetchApplications();
-    fetchResumes();
-    fetchCompanies();
   }, [filters.search, filters.status, filters.sort_by, filters.sort_order, pagination.page]);
 
   const fetchApplications = async () => {
+    setLoading(true);
     try {
       const { data } = await applicationAPI.getAll({
         page: pagination.page,
-        limit: 10,
+        limit: 12,
         ...filters,
       });
-      setApplications(data.data);
+      setApplications(data.data || []);
       setPagination(prev => ({
         ...prev,
-        totalPages: data.pagination.totalPages,
-        total: data.pagination.total,
+        totalPages: data.pagination?.totalPages || 1,
+        total: data.pagination?.total || 0,
       }));
     } catch (error) {
       toast.error('Failed to fetch applications');
@@ -53,297 +48,261 @@ export default function Applications() {
     }
   };
 
-  const fetchResumes = async () => {
-    try {
-      const { data } = await resumeAPI.getAll();
-      setResumes(data.data);
-    } catch (err) { /* silent */ }
-  };
-
-  const fetchCompanies = async () => {
-    try {
-      const { data } = await companyAPI.getAll();
-      setAvailableCompanies(data.data || []);
-    } catch (err) { /* silent */ }
-  };
-
-  const onSubmit = async (formData) => {
-    try {
-      if (editingApp) {
-        await applicationAPI.update(editingApp.id, formData);
-        toast.success('Application updated!');
-      } else {
-        await applicationAPI.create(formData);
-        toast.success('Application added!');
-      }
-      setModalOpen(false);
-      setEditingApp(null);
-      reset();
-      fetchApplications();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Operation failed');
+  const handleWithdraw = async (id, companyName, status) => {
+    if (['shortlisted', 'selected'].includes(status)) {
+      return toast.error('You cannot withdraw an application that has already been shortlisted or selected by T&P Cell.');
     }
-  };
+    if (!window.confirm(`Withdraw application for ${companyName}?`)) return;
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this application?')) return;
     try {
       await applicationAPI.delete(id);
-      toast.success('Application deleted');
+      toast.success('Application withdrawn successfully');
       fetchApplications();
     } catch (error) {
-      toast.error('Failed to delete');
+      toast.error(error.response?.data?.message || 'Failed to withdraw application');
     }
   };
 
-  const openEditModal = (app) => {
-    setEditingApp(app);
-    Object.keys(app).forEach(key => {
-      if (key === 'deadline' || key === 'oa_date' || key === 'interview_date') {
-        setValue(key, app[key] ? new Date(app[key]).toISOString().split('T')[0] : '');
-      } else {
-        setValue(key, app[key] || '');
-      }
-    });
-    setModalOpen(true);
-  };
-
-  const openCreateModal = () => {
-    setEditingApp(null);
-    reset();
-    setModalOpen(true);
-  };
-
-  if (loading) return <PageSkeleton />;
-
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in pb-12">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#222] pb-6">
         <div>
-          <h1 className="text-3xl font-bold text-surface-200">Applications</h1>
-          <p className="text-surface-200/50 mt-1">{pagination.total} total applications</p>
+          <h1 className="text-3xl font-bold tracking-tight text-white">My Campus Drive Applications</h1>
+          <p className="text-surface-200/50 text-sm mt-1">
+            Track official hiring decisions, shortlisting status, and interview rounds.
+          </p>
         </div>
-        <button onClick={openCreateModal} className="btn-primary" id="add-application-btn">
-          <Plus size={20} /> Add Application
-        </button>
+
+        <Link to="/companies" className="btn-primary text-sm flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 border-none text-white">
+          <Building2 size={16} /> Explore New Drives
+        </Link>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-surface-200/40" />
-          <input
-            type="text"
-            placeholder="Search company or role..."
-            className="input-field pl-11"
-            value={filters.search}
-            onChange={(e) => { setFilters(f => ({ ...f, search: e.target.value })); setPagination(p => ({ ...p, page: 1 })); }}
-            id="search-applications"
-          />
+      {/* Notice Banner */}
+      <div className="p-3.5 rounded-xl border border-white/10 bg-white/[0.02] flex items-center justify-between gap-3 text-xs text-surface-200/70">
+        <div className="flex items-center gap-2">
+          <AlertCircle size={16} className="text-emerald-400 flex-shrink-0" />
+          <span>Application and selection statuses are updated directly by the College Training & Placement Cell.</span>
         </div>
-        <select
-          className="input-field w-full sm:w-48"
-          value={filters.status}
-          onChange={(e) => { setFilters(f => ({ ...f, status: e.target.value })); setPagination(p => ({ ...p, page: 1 })); }}
-          id="filter-status"
-        >
-          <option value="">All Statuses</option>
-          {STATUS_OPTIONS.map(s => (
-            <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
-        <select
-          className="input-field w-full sm:w-48"
-          value={filters.sort_by}
-          onChange={(e) => setFilters(f => ({ ...f, sort_by: e.target.value }))}
-          id="sort-applications"
-        >
-          <option value="created_at">Date Added</option>
-          <option value="company_name">Company</option>
-          <option value="deadline">Deadline</option>
-          <option value="status">Status</option>
-        </select>
+        <span className="font-mono text-emerald-400 font-semibold">{pagination.total} Applications Submitted</span>
       </div>
 
-      {/* Applications List */}
-      {applications.length === 0 ? (
-        <EmptyState
-          icon={Building2}
-          title="No applications yet"
-          description="Start tracking your placement applications by adding your first company."
-          action={<button onClick={openCreateModal} className="btn-primary"><Plus size={20} /> Add Application</button>}
-        />
-      ) : (
-        <div className="space-y-4">
-          <AnimatePresence>
-            {applications.map((app, index) => (
-              <motion.div
-                key={app.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ delay: index * 0.05 }}
-                className="glass-card p-5 flex flex-col lg:flex-row lg:items-center gap-4"
+      {/* Filter and Search Bar */}
+      <div className="glass-card p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="relative flex-1 w-full max-w-md">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-200/40" />
+            <input
+              type="text"
+              placeholder="Search by recruiter or role..."
+              value={filters.search}
+              onChange={(e) => { setFilters({ ...filters, search: e.target.value }); setPagination(p => ({ ...p, page: 1 })); }}
+              className="input-field text-xs pl-9 py-2 w-full"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
+            {['all', 'applied', 'shortlisted', 'selected', 'rejected'].map(statusKey => (
+              <button
+                key={statusKey}
+                onClick={() => { setFilters({ ...filters, status: statusKey }); setPagination(p => ({ ...p, page: 1 })); }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
+                  filters.status === statusKey
+                    ? 'bg-white text-black font-bold'
+                    : 'bg-[#141414] text-surface-200/60 hover:text-white'
+                }`}
               >
-                {/* Company Info */}
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                  <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center flex-shrink-0">
-                    <span className="text-white font-bold text-lg">{app.company_name?.charAt(0)}</span>
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="font-semibold text-surface-200 truncate">{app.company_name}</h3>
-                    <p className="text-sm text-surface-200/50 truncate">{app.role}</p>
-                  </div>
-                </div>
-
-                {/* Meta */}
-                <div className="flex flex-wrap items-center gap-3 text-sm text-surface-200/50">
-                  {app.package && (
-                    <span className="flex items-center gap-1">💰 {app.package}</span>
-                  )}
-                  {app.location && (
-                    <span className="flex items-center gap-1"><MapPin size={14} /> {app.location}</span>
-                  )}
-                  {app.deadline && (
-                    <span className="flex items-center gap-1"><Calendar size={14} /> {formatDate(app.deadline)}</span>
-                  )}
-                </div>
-
-                {/* Status + Actions */}
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <span className={`text-xs font-medium px-3 py-1.5 rounded-lg ${getStatusBg(app.status)}`}>
-                    {getStatusLabel(app.status)}
-                  </span>
-                  {app.application_link && (
-                    <a href={app.application_link} target="_blank" rel="noopener" className="p-2 rounded-lg hover:bg-white/10 text-surface-200/40 hover:text-primary-400 transition-all">
-                      <ExternalLink size={16} />
-                    </a>
-                  )}
-                  <button onClick={() => openEditModal(app)} className="p-2 rounded-lg hover:bg-white/10 text-surface-200/40 hover:text-primary-400 transition-all">
-                    <Edit size={16} />
-                  </button>
-                  <button onClick={() => handleDelete(app.id)} className="p-2 rounded-lg hover:bg-danger/10 text-surface-200/40 hover:text-danger transition-all">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </motion.div>
+                {statusKey}
+              </button>
             ))}
-          </AnimatePresence>
+          </div>
+        </div>
+      </div>
 
-          {/* Pagination */}
-          {pagination.totalPages > 1 && (
-            <div className="flex items-center justify-center gap-4 pt-4">
-              <button
-                onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
-                disabled={pagination.page <= 1}
-                className="btn-secondary py-2 px-4 disabled:opacity-30"
-              >
-                <ChevronLeft size={18} /> Prev
-              </button>
-              <span className="text-surface-200/60 text-sm">
-                Page {pagination.page} of {pagination.totalPages}
-              </span>
-              <button
-                onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
-                disabled={pagination.page >= pagination.totalPages}
-                className="btn-secondary py-2 px-4 disabled:opacity-30"
-              >
-                Next <ChevronRight size={18} />
-              </button>
-            </div>
-          )}
+      {/* Applications Cards Grid */}
+      {loading ? (
+        <PageSkeleton />
+      ) : applications.length === 0 ? (
+        <div className="glass-card py-20 flex flex-col items-center justify-center text-center">
+          <Building2 size={48} className="text-surface-200/20 mb-3" />
+          <h3 className="text-lg font-semibold text-white">No Applications Found</h3>
+          <p className="text-xs text-surface-200/50 mt-1 max-w-sm mb-4">
+            {filters.status !== 'all' || filters.search
+              ? 'No applications match the current filter.'
+              : 'You have not applied for any placement opportunities yet.'}
+          </p>
+          <Link to="/companies" className="btn-primary text-xs bg-emerald-600 hover:bg-emerald-500 border-none text-white">
+            Browse Open Campus Drives
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {applications.map((app) => (
+            <motion.div
+              key={app.id}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`glass-card p-6 flex flex-col justify-between border transition-all ${
+                app.status === 'selected'
+                  ? 'border-emerald-500/40 bg-emerald-950/10'
+                  : app.status === 'shortlisted'
+                  ? 'border-blue-500/40 bg-blue-950/10'
+                  : app.status === 'rejected'
+                  ? 'border-red-500/20 opacity-80'
+                  : 'border-[#262626]'
+              }`}
+            >
+              <div>
+                {/* Header */}
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 font-bold text-white text-lg overflow-hidden">
+                      {app.company_logo_url ? (
+                        <img src={app.company_logo_url} alt={app.company_name} className="w-full h-full object-cover" />
+                      ) : (
+                        app.company_name?.charAt(0)
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-white text-base">{app.company_name}</h3>
+                      <p className="text-xs text-surface-200/50">{app.role}</p>
+                    </div>
+                  </div>
+
+                  {/* Status Badge */}
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                    app.status === 'selected'
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      : app.status === 'shortlisted'
+                      ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                      : app.status === 'rejected'
+                      ? 'bg-red-500/15 text-red-400 border border-red-500/30'
+                      : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                  }`}>
+                    {app.status === 'selected' ? 'Offer / Selected 🎉' : app.status}
+                  </span>
+                </div>
+
+                {/* Package & Location */}
+                <div className="grid grid-cols-2 gap-2 my-3">
+                  <div className="p-2 rounded bg-black/40 border border-[#242424]">
+                    <span className="text-[10px] uppercase tracking-wider text-surface-200/40 block">Package (CTC)</span>
+                    <span className="text-sm font-bold text-emerald-400">{app.package || 'Competitive'}</span>
+                  </div>
+                  <div className="p-2 rounded bg-black/40 border border-[#242424]">
+                    <span className="text-[10px] uppercase tracking-wider text-surface-200/40 block">Applied On</span>
+                    <span className="text-xs font-semibold text-white font-mono">
+                      {new Date(app.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Attached Resume */}
+                <div className="text-xs text-surface-200/70 space-y-1.5 my-3">
+                  {app.resume_url && (
+                    <div className="flex items-center justify-between p-2 rounded bg-white/[0.02] border border-[#222]">
+                      <span className="flex items-center gap-1.5 truncate text-[11px] text-surface-200/80">
+                        <FileText size={13} className="text-emerald-400 flex-shrink-0" />
+                        <span className="truncate">{app.resume_name || 'Attached Resume'}</span>
+                      </span>
+                      <button
+                        onClick={() => setPreviewResumeUrl(app.resume_url)}
+                        className="text-[11px] font-semibold text-emerald-400 hover:underline flex items-center gap-0.5 ml-2"
+                      >
+                        Preview <ExternalLink size={10} />
+                      </button>
+                    </div>
+                  )}
+
+                  {app.notes && (
+                    <p className="text-[11px] text-surface-200/50 italic bg-black/30 p-2 rounded border border-[#202020]">
+                      "{app.notes}"
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Status Message Footer */}
+              <div className="border-t border-[#222] pt-3 mt-2 flex items-center justify-between text-xs">
+                {app.status === 'selected' ? (
+                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 size={13} /> Final selection offer verified by T&P
+                  </span>
+                ) : app.status === 'shortlisted' ? (
+                  <span className="text-blue-400 font-semibold flex items-center gap-1">
+                    <Clock size={13} /> Shortlisted for technical rounds
+                  </span>
+                ) : app.status === 'applied' ? (
+                  <>
+                    <span className="text-surface-200/50">Under review by coordinator</span>
+                    <button
+                      onClick={() => handleWithdraw(app.id, app.company_name, app.status)}
+                      className="text-red-400/80 hover:text-red-300 text-xs hover:underline"
+                    >
+                      Withdraw
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-red-400/80">Application closed</span>
+                )}
+              </div>
+            </motion.div>
+          ))}
         </div>
       )}
 
-      {/* Create/Edit Modal */}
-      <Modal
-        isOpen={modalOpen}
-        onClose={() => { setModalOpen(false); setEditingApp(null); reset(); }}
-        title={editingApp ? 'Edit Application' : 'Add Application'}
-        size="lg"
-      >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-surface-200/70 mb-1">Company Name *</label>
-              <input className="input-field" placeholder="Google" list="company-options" {...register('company_name', { required: 'Required' })} />
-              <datalist id="company-options">
-                {availableCompanies.map(c => (
-                  <option key={c.id} value={c.name}>{c.industry ? `${c.name} (${c.industry})` : c.name}</option>
-                ))}
-              </datalist>
-              {errors.company_name && <p className="text-danger text-xs mt-1">{errors.company_name.message}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-surface-200/70 mb-1">Role *</label>
-              <input className="input-field" placeholder="SDE Intern" {...register('role', { required: 'Required' })} />
-              {errors.role && <p className="text-danger text-xs mt-1">{errors.role.message}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-surface-200/70 mb-1">Package</label>
-              <input className="input-field" placeholder="12 LPA" {...register('package')} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-surface-200/70 mb-1">Location</label>
-              <input className="input-field" placeholder="Bangalore" {...register('location')} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-surface-200/70 mb-1">Status</label>
-              <select className="input-field" {...register('status')}>
-                {STATUS_OPTIONS.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-surface-200/70 mb-1">Resume</label>
-              <select className="input-field" {...register('resume_id')}>
-                <option value="">No resume linked</option>
-                {resumes.map(r => (
-                  <option key={r.id} value={r.id}>{r.name} (v{r.version})</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-surface-200/70 mb-1">Application Deadline</label>
-              <input type="date" className="input-field" {...register('deadline')} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-surface-200/70 mb-1">OA Date</label>
-              <input type="date" className="input-field" {...register('oa_date')} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-surface-200/70 mb-1">Interview Date</label>
-              <input type="date" className="input-field" {...register('interview_date')} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-surface-200/70 mb-1">Application Link</label>
-              <input className="input-field" placeholder="https://..." {...register('application_link')} />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-surface-200/70 mb-1">Eligibility</label>
-            <input className="input-field" placeholder="CGPA > 7.0, CSE/IT" {...register('eligibility')} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-surface-200/70 mb-1">Job Description</label>
-            <textarea rows={3} className="input-field" placeholder="Paste JD here..." {...register('job_description')} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-surface-200/70 mb-1">Notes</label>
-            <textarea rows={2} className="input-field" placeholder="Personal notes..." {...register('notes')} />
-          </div>
-          <div className="flex gap-3 pt-2">
-            <button type="submit" className="btn-primary flex-1">
-              {editingApp ? 'Update Application' : 'Add Application'}
+      {/* Pagination */}
+      {pagination.totalPages > 1 && (
+        <div className="flex justify-between items-center px-4 py-3 border-t border-[#222] text-xs text-surface-200/60">
+          <span>Page {pagination.page} of {pagination.totalPages}</span>
+          <div className="flex gap-2">
+            <button
+              disabled={pagination.page <= 1}
+              onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
+              className="px-3 py-1 rounded bg-[#181818] hover:bg-[#252525] disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Prev
             </button>
-            <button type="button" onClick={() => { setModalOpen(false); reset(); }} className="btn-secondary">
-              Cancel
+            <button
+              disabled={pagination.page >= pagination.totalPages}
+              onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
+              className="px-3 py-1 rounded bg-[#181818] hover:bg-[#252525] disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Next
             </button>
           </div>
-        </form>
-      </Modal>
+        </div>
+      )}
+
+      {/* Resume Preview Modal */}
+      <AnimatePresence>
+        {previewResumeUrl && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/90 backdrop-blur-md" onClick={() => setPreviewResumeUrl(null)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-4xl h-[85vh] bg-[#111] border border-[#333] rounded-2xl p-4 flex flex-col z-10"
+            >
+              <div className="flex justify-between items-center pb-2 border-b border-[#222]">
+                <h3 className="font-semibold text-white text-sm">Attached Resume Preview</h3>
+                <button onClick={() => setPreviewResumeUrl(null)} className="text-surface-200/50 hover:text-white">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="flex-1 mt-3 rounded-lg overflow-hidden border border-[#222]">
+                <iframe
+                  src={previewResumeUrl}
+                  title="Application Resume"
+                  className="w-full h-full"
+                />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

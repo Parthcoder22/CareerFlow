@@ -157,7 +157,7 @@ export default function ResumeManager() {
 
                 <div className="flex gap-2 mt-4 pt-4 border-t border-white/5">
                   <a
-                    href={`/api/resumes/${resume.id}/file?token=${localStorage.getItem('careerflow_token')}`}
+                    href={resume.file_url}
                     target="_blank"
                     rel="noreferrer"
                     className="btn-secondary flex-1 py-2 text-sm"

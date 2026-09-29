@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Environment files
+.env
+server/.env
+*.env.local
+
+# Build output
+client/dist/
+dist/
+
+# Uploads and temporary files
+server/uploads/
+uploads/
+*.log
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

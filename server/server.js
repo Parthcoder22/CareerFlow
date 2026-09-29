@@ -11,7 +11,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 const { generalLimiter } = require('./middleware/rateLimiter');
+const { startReminderCron } = require('./services/reminderService');
 
 // Load environment variables before anything else
 dotenv.config();
@@ -19,7 +21,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Static uploads directory for local files
+// Static uploads directory for general non-resume static assets
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ============================================
@@ -115,7 +117,16 @@ app.use((err, req, res, next) => {
 // START SERVER
 // ============================================
 
-app.listen(PORT, () => {
+// Process safety guards to prevent unhandled errors from terminating the server
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ Unhandled Rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ Uncaught Exception:', err);
+});
+
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`
   ╔══════════════════════════════════════════╗
   ║   🚀 CareerFlow Server Running          ║
@@ -124,6 +135,13 @@ app.listen(PORT, () => {
   ║   📅 ${new Date().toISOString()}   ║
   ╚══════════════════════════════════════════╝
   `);
+
+  // Start daily notification cron jobs
+  try {
+    startReminderCron();
+  } catch (cronErr) {
+    console.warn('Reminder cron scheduling warning:', cronErr.message);
+  }
 });
 
 module.exports = app;
